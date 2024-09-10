@@ -22,7 +22,7 @@ FeaturesConverter converter(wifiScanner, classifier);
 // Estrutura para armazenar informações sobre um ponto de acesso
 struct AccessPoint {
     String SSID;
-    int32_t RSSI;
+    float RSSI;
     String BSSID;
     int DISTANCE;
 };
@@ -33,11 +33,18 @@ struct Position {
 };
 
 // Calibrar o path loss (n) de acordo com o ambiente de forma automática
+float calculatePathLoss(float distance, float rssi, float rssi0) {
+  if (distance <= 0) {
+    return 0;
+  }
+  float pathLoss = (rssi0 - rssi) / (10 * log10(distance));
+  Serial.print(pathLoss);
+}
 
 // Calibrar o RSSI0 de acordo com o ambiente de forma automática
-int32_t calibrateRSSI0() {
-    int32_t rssiSum = 0;
-    int32_t rssiCount = 0;
+float calibrateRSSI0() {
+    float rssiSum = 0;
+    float rssiCount = 0;
 
     // Perform multiple scans to get an average RSSI value
     for (int i = 0; i < 5; i++) {
@@ -50,18 +57,19 @@ int32_t calibrateRSSI0() {
     }
 
     // Calculate the average RSSI value
-    int32_t rssiAverage = rssiSum / rssiCount;
+    float rssiAverage = rssiSum / rssiCount;
 
     // Return the calibrated RSSI0 value
     return rssiAverage;
 }
 
 // Calcular Distância através do RSSI
-float calculateDistance(float RSSI, float RSSI0 = -56, float n = 2.1) {
+float calculateDistance(float RSSI, float RSSI0 = -56, float n=2.1) {
     return pow(10, (RSSI0 - RSSI) / (10 * n));
 }
 //calcular a posição do esp a partir da das coordenadas do roteador 1 (x1, y1) e roteador 2 (x2, y2), e das distâncias encontradas através do RSSI
 Position calculatePosition(float x1 , float y1 , float x2, float y2, float d1, float d2) {
+  /*
   Serial.println("Valores variavéis ");
   Serial.print("x1: ");
   Serial.print(x1);
@@ -75,24 +83,27 @@ Position calculatePosition(float x1 , float y1 , float x2, float y2, float d1, f
   Serial.print(d1);
   Serial.print(" d2: ");
   Serial.println(d2);
+  */
 
   float A = 2 * (x2 - x1);
+  float B = 2 * (y2 - y1);
+  float C = pow(x1, 2) + pow(y1, 2) - pow(x2, 2) - pow(y2, 2) - pow(d1, 2) + pow(d2, 2);
+  // As fórmulas para calcular x e y
+  float x = (C * B) / (A * A + B * B);
+  float y = (C * A) / (A * A + B * B);
+  /*
   Serial.println("Valores Função Calculate Position ");
   Serial.print("A: ");
   Serial.print(A);
-  float B = 2 * (y2 - y1);
   Serial.print(" B: ");
   Serial.print(B);
-  float C = pow(x1, 2) + pow(y1, 2) - pow(x2, 2) - pow(y2, 2) - pow(d1, 2) + pow(d2, 2);
   Serial.print(" C: ");
   Serial.print(C);
-  // As fórmulas para calcular x e y foram ajustadas
-  float x = (C * B) / (A * A + B * B);
   Serial.print(" x: ");
   Serial.print(x);
-  float y = (C * A) / (A * A + B * B);
   Serial.print(" y: ");
   Serial.print(y);
+  */
   return Position{x, y};
 }
 
@@ -102,6 +113,9 @@ float ry1 = 8;
 float rx2 = 8;
 float ry2 = 8;
 float distanciaEntreRoteadores = 8;
+float distance;
+float rssi0;
+float pathloss = 2.1;
 
 const char* apiEndpointPOST = "https://deerego-back.onrender.com/rebocador/entrega/carrinho"; // URL POST -> adicionar novas informações
 const char* apiEndpointPATCH = "https://deerego-back.onrender.com/rebocador/entrega/carrinho/66d843f5abc2283e65640a90"; // URL PATCH -> atualizar informações
@@ -206,11 +220,13 @@ void loop() {
 
   // scan & predict
   String local = converter.predict();
-  delay(100);
   Serial.println(local);
+  float rssi0 = calibrateRSSI0();
+  Serial.println(rssi0);
 
+  
   // Array para armazenar as informações dos 3 pontos de acesso mais fortes
-  AccessPoint strongestAPs[3];
+  AccessPoint strongestAPs[4];
 
   Serial.println("scan start");
 
@@ -224,13 +240,13 @@ void loop() {
     Serial.println(" networks found");
     for (int i = 0; i < n; ++i) {
       // Obtem a força do sinal e o SSID da rede Wi-Fi
-      int32_t rssi = WiFi.RSSI(i);
+      float rssi = WiFi.RSSI(i);
       String ssid = WiFi.SSID(i);
       String bssid = WiFi.BSSIDstr(i);
 
-      for (int j = 0; j < 2; j++){
-        if (rssi > strongestAPs[j].RSSI || i < 2) {
-            for (int k = 1; k > j; k--){
+      for (int j = 0; j < 4; j++){
+        if (rssi > strongestAPs[j].RSSI || i < 4) {
+            for (int k = 3; k > j; k--){
               strongestAPs[k] = strongestAPs[k-1];
             }
             strongestAPs[j].RSSI = rssi;
@@ -242,8 +258,8 @@ void loop() {
       }
     }
     // Exibe os 2 pontos de acesso mais fortes
-        Serial.println("Top 2 Redes Wi-Fi com sinal mais forte:");
-        for (int i = 0; i < 2 && i < n; ++i) {
+        Serial.println("Top 4 Redes Wi-Fi com sinal mais forte:");
+        for (int i = 0; i < 4 && i < n; ++i) {
             Serial.print("SSID: ");
             Serial.print(strongestAPs[i].SSID);
             Serial.print(" | RSSI: ");
@@ -254,7 +270,7 @@ void loop() {
             Serial.println(strongestAPs[i].DISTANCE);
         }
   }
-
+  
   // calcular as coordenadas X e Y
   Position pos = calculatePosition(rx1, ry1, rx2, ry2, strongestAPs[0].DISTANCE, strongestAPs[1].DISTANCE);
   Serial.print("ESP Position: (");
@@ -262,7 +278,7 @@ void loop() {
   Serial.print(", ");
   Serial.print(pos.y);
   Serial.println(")");
-
+  /*
   // Conectar o ESP ao Wifi para enviar os dados ao banco de dados
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssidLucas, passwordLucas);
@@ -275,5 +291,7 @@ void loop() {
 
   // delay para escanear denovo
   delay(5000);
+  */
+
   
 }
