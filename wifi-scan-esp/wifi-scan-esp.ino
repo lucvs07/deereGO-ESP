@@ -1,6 +1,21 @@
 
 #include "WiFi.h" 
 #include "HTTPClient.h"
+/**
+* Collect RTLS training data
+* using WiFi
+*/
+#include <eloquent_rtls.h>
+#include <eloquent_rtls/wifi.h>
+#include "Classifier.h"
+#include "FeaturesConverter.h"
+
+
+using eloq::rtls::wifiScanner;
+using eloq::rtls::FeaturesConverter;
+
+Classifier classifier;
+FeaturesConverter converter(wifiScanner, classifier);
 
 
 
@@ -40,9 +55,6 @@ int32_t calibrateRSSI0() {
     // Return the calibrated RSSI0 value
     return rssiAverage;
 }
-
-
-
 
 // Calcular Distância através do RSSI
 float calculateDistance(float RSSI, float RSSI0 = -56, float n = 2.1) {
@@ -95,6 +107,7 @@ const char* apiEndpointPOST = "https://deerego-back.onrender.com/rebocador/entre
 const char* apiEndpointPATCH = "https://deerego-back.onrender.com/rebocador/entrega/carrinho/66d843f5abc2283e65640a90"; // URL PATCH -> atualizar informações
 const char* ssidLucas = "A30 de Ronaldo";
 const char* passwordLucas = "24012006";
+String local;
 
 void enviarDados(float espX, float espY, String apiEndpoint) {
     if (WiFi.status() == WL_CONNECTED) {
@@ -176,12 +189,25 @@ void setup() {
   // Set WiFi to station mode and disconnect from an AP if it was previously connected
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
+
+  // Wifi scan ML
+  wifiScanner.identifyBySSID();
+  // set lower bound for RSSI
+  wifiScanner.discardWeakerThan(-85);
+  // print feature vector before predictions
+  converter.verbose();
+
   delay(100);
 
   Serial.println("Setup done");
 }
 
 void loop() {
+
+  // scan & predict
+  String local = converter.predict();
+  delay(100);
+  Serial.println(local);
 
   // Array para armazenar as informações dos 3 pontos de acesso mais fortes
   AccessPoint strongestAPs[3];
@@ -215,7 +241,7 @@ void loop() {
           }
       }
     }
-    // Exibe os 3 pontos de acesso mais fortes
+    // Exibe os 2 pontos de acesso mais fortes
         Serial.println("Top 2 Redes Wi-Fi com sinal mais forte:");
         for (int i = 0; i < 2 && i < n; ++i) {
             Serial.print("SSID: ");
@@ -228,25 +254,26 @@ void loop() {
             Serial.println(strongestAPs[i].DISTANCE);
         }
   }
-  Serial.println("");
-  Serial.println(strongestAPs[0].DISTANCE);
-  Serial.println(strongestAPs[0].SSID);
-  Serial.println(strongestAPs[0].RSSI);
-  Serial.println(strongestAPs[1].DISTANCE);
+
+  // calcular as coordenadas X e Y
   Position pos = calculatePosition(rx1, ry1, rx2, ry2, strongestAPs[0].DISTANCE, strongestAPs[1].DISTANCE);
   Serial.print("ESP Position: (");
   Serial.print(pos.x);
   Serial.print(", ");
   Serial.print(pos.y);
   Serial.println(")");
+
+  // Conectar o ESP ao Wifi para enviar os dados ao banco de dados
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssidLucas, passwordLucas);
   while (WiFi.status()!= WL_CONNECTED){
     delay(500);
     Serial.println("not Connected");
   }
-  atualizarDados(pos.x, pos.y, apiEndpointPATCH, "Fiap");
+  // atualizar status e posição do carrinho
+  atualizarDados(pos.x, pos.y, apiEndpointPATCH, local);
 
-  // Wait a bit before scanning again
+  // delay para escanear denovo
   delay(5000);
+  
 }

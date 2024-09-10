@@ -8,12 +8,12 @@
 #include "Classifier.h"
 #include "FeaturesConverter.h"
 
+
 using eloq::rtls::wifiScanner;
 using eloq::rtls::FeaturesConverter;
 
 Classifier classifier;
 FeaturesConverter converter(wifiScanner, classifier);
-
 
 /**
  *

@@ -83,15 +83,15 @@ namespace eloq {
                     if (identifier == "ronaldoterapin") features[39] = rssi;
                     
                 }
-
+                /**
                 dump();
 
                 /** predict **/
                 int prediction = _classifier->predict(features);
 
                 switch (prediction) {
-                     case 0: return "{quarto-2}";
-                     case 1: return "{quarto}";
+                     case 0: return "quarto-2";
+                     case 1: return "quarto";
                     
                 }
 
@@ -100,7 +100,7 @@ namespace eloq {
 
             /**
              * Print features vector
-             */
+             
             void dump() {
                 if (!_verbose)
                     return;
@@ -115,6 +115,7 @@ namespace eloq {
 
                 Serial.println("]");
             }
+            */
 
         protected:
             bool _verbose;
