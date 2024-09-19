@@ -273,6 +273,24 @@ void getAPI(String apiEndpoint){
     }
 }
 
+// Função para buscar os pontos de acesso com base nos SSIDs definidos por uma lista
+std::vector<AccessPoint> getApBySSID(const std::vector<AccessPoint>& accessPoints, const std::vector<String>& ssidList){
+  std::vector<AccessPoint> foundAPs;
+
+  // Iterar através dos SSID da lista
+  for (const auto& ssid : ssidList) {
+    for (const auto& ap : accessPoints) {
+      if (ap.SSID == ssid) {
+        // se o ssid da rede for encontrado, adicione à lista
+        foundAPs.push_back(ap);
+        break;
+      }
+    }
+  }
+
+  return foundAPs; // Retornar a lista dos pontos de acesso encontrados
+}
+
 void getNetworkAps(){
   std::vector<AccessPoint> strongestAPs; // vetor dinâmico para armazenar as informações (ssid, rssi e distância) dos roteadores
   
@@ -308,9 +326,23 @@ void getNetworkAps(){
     return a.RSSI > b.RSSI; // ordena em ordem decrescente de RSSI
   });
 
-  // Exibir
-  Serial.println("Lista de pontos de acesso: ");
+  //SSID LIST
+  std::vector<String> ssidList = {"Guto Rapido", "11B", "AleDessa", "CAMARGO"};
+
+  //Buscar as informações com base na SSID LIST
+  std::vector<AccessPoint> selectedAPs = getApBySSID(strongestAPs, ssidList);
+
+  // Exibir Lista Geral
+  Serial.println("Lista de pontos de acesso (GERAL): ");
   for (const auto& ap : strongestAPs) {
+    Serial.print("SSID: " + String(ap.SSID));
+    Serial.print(" | RSSID: " + String(ap.RSSI));
+    Serial.print(" | BSSID: " + String(ap.BSSID));
+    Serial.println(" | DISTANCE: " + String(ap.DISTANCE));
+  }
+  // Exibir
+  Serial.println("Lista de pontos de acesso (SSIDLIST): ");
+  for (const auto& ap : selectedAPs) {
     Serial.print("SSID: " + String(ap.SSID));
     Serial.print(" | RSSID: " + String(ap.RSSI));
     Serial.print(" | BSSID: " + String(ap.BSSID));
