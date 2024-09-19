@@ -118,9 +118,9 @@ float rssi0;
 float pathloss = 2.1;
 
 const char* apiEndpointPOST = "https://deerego-back.onrender.com/rebocador/entrega/carrinho"; // URL POST -> adicionar novas informações
-const char* apiEndpointPATCH = "https://deerego-back.onrender.com/rebocador/entrega/carrinho/66d843f5abc2283e65640a90"; // URL PATCH -> atualizar informações
-const char* ssidLucas = "A30 de Ronaldo";
-const char* passwordLucas = "24012006";
+const char* apiEndpointPATCH = "https://deerego-back.onrender.com/rebocador/entrega/carrinho/66e08df63a8e1bab87c0713a"; // URL PATCH -> atualizar informações
+const char* ssidLucas = "Guto Rapido";
+const char* passwordLucas = "familiarg_33";
 String local;
 
 void enviarDados(float espX, float espY, String apiEndpoint) {
@@ -180,8 +180,6 @@ void atualizarDados(float espX, float espY, String apiEndpoint, String local) {
         
         
         int httpResponseCode = http.PATCH(payload);
-        Serial.println("ResponseCode");
-        Serial.print(httpResponseCode);
 
         if (httpResponseCode > 0) {
             String response = http.getString();
@@ -221,9 +219,6 @@ void loop() {
   // scan & predict
   String local = converter.predict();
   Serial.println(local);
-  float rssi0 = calibrateRSSI0();
-  Serial.println(rssi0);
-
   
   // Array para armazenar as informações dos 3 pontos de acesso mais fortes
   AccessPoint strongestAPs[4];
@@ -257,7 +252,7 @@ void loop() {
           }
       }
     }
-    // Exibe os 2 pontos de acesso mais fortes
+    // Exibe os 4 pontos de acesso mais fortes
         Serial.println("Top 4 Redes Wi-Fi com sinal mais forte:");
         for (int i = 0; i < 4 && i < n; ++i) {
             Serial.print("SSID: ");
@@ -278,7 +273,7 @@ void loop() {
   Serial.print(", ");
   Serial.print(pos.y);
   Serial.println(")");
-  /*
+  
   // Conectar o ESP ao Wifi para enviar os dados ao banco de dados
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssidLucas, passwordLucas);
@@ -291,7 +286,7 @@ void loop() {
 
   // delay para escanear denovo
   delay(5000);
-  */
+  
 
   
 }
