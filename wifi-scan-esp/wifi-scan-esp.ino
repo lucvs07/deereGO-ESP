@@ -1,7 +1,8 @@
 
-#include "WiFi.h" 
-#include "HTTPClient.h"
+#include "WiFi.h" // Blioteca para configurações WIFI 
+#include "HTTPClient.h" // Blioteca para realizar requisições HTTP
 #include <ArduinoJson.h> // Incluindo a biblioteca ArduinoJson
+#include <vector> // Incluir vector dinâmico
 /**
 * Collect RTLS training data
 * using WiFi
@@ -32,6 +33,16 @@ struct Position {
   float x;
   float y;
 };
+
+
+float rx1 = 1;
+float ry1 = 8;
+float rx2 = 8;
+float ry2 = 8;
+float distanciaEntreRoteadores = 8;
+float distance;
+float rssi0;
+float pathloss = 2.1;
 
 // Calibrar o path loss (n) de acordo com o ambiente de forma automática
 float calculatePathLoss(float distance, float rssi, float rssi0) {
@@ -108,15 +119,6 @@ Position calculatePosition(float x1 , float y1 , float x2, float y2, float d1, f
   return Position{x, y};
 }
 
-
-float rx1 = 1;
-float ry1 = 8;
-float rx2 = 8;
-float ry2 = 8;
-float distanciaEntreRoteadores = 8;
-float distance;
-float rssi0;
-float pathloss = 2.1;
 
 const char* apiEndpointGET = "https://deerego-back.onrender.com/user"; // URL GET -> Buscar informações dos usuários
 const char* apiEndpointPOST = "https://deerego-back.onrender.com/rebocador/entrega/carrinho"; // URL POST -> adicionar novas informações
@@ -271,16 +273,60 @@ void getAPI(String apiEndpoint){
     }
 }
 
+void getNetworkAps(){
+  std::vector<AccessPoint> strongestAPs; // vetor dinâmico para armazenar as informações (ssid, rssi e distância) dos roteadores
+  
+  // WiFi.scanNetworks retorna o número de redes encontradas
+  int n = WiFi.scanNetworks();
+  Serial.println("Scan Feito");
+  if (n == 0){
+    Serial.println("Nenhuma Rede Encontrada");
+  } else {
+    Serial.println(n + "- Redes Encontradas");
+  }
+  
+  // Loop para armazenar as informações dos roteadores no vector
+  for (int i = 0; i < n; ++i) {
+    // Obter SSID e RSSI da rede Wi-Fi
+    float rssi = WiFi.RSSI(i);
+    String ssid = WiFi.SSID(i);
+    String bssid = WiFi.BSSIDstr(i);
+
+    // Criar uma estrutura apartir da AccessPoint para as informações do ponto de acesso que está sendo guardado
+    AccessPoint ap;
+    ap.RSSI = rssi;
+    ap.SSID = ssid;
+    ap.BSSID =  bssid;
+    ap.DISTANCE = calculateDistance(rssi);
+
+    // Adicionar o ponto de acesso ao vetor
+    strongestAPs.push_back(ap);
+  }
+  
+  // Ordenar o vector (do mais forte para o mais fraco)
+  std::sort(strongestAPs.begin(), strongestAPs.end(), [](const AccessPoint &a, const AccessPoint &b){
+    return a.RSSI > b.RSSI; // ordena em ordem decrescente de RSSI
+  });
+
+  // Exibir
+  Serial.println("Lista de pontos de acesso: ");
+  for (const auto& ap : strongestAPs) {
+    Serial.print("SSID: " + String(ap.SSID));
+    Serial.print(" | RSSID: " + String(ap.RSSI));
+    Serial.print(" | BSSID: " + String(ap.BSSID));
+    Serial.println(" | DISTANCE: " + String(ap.DISTANCE));
+  }
+}
+
 void setup() {
   Serial.begin(115200);
 
   // Set WiFi to station mode and disconnect from an AP if it was previously connected
   WiFi.mode(WIFI_STA);
-  delay(500);
-  WiFi.begin(ssidLucas, passwordLucas);
-  delay(500);
+  WiFi.disconnect();
+  getNetworkAps();
 
-  //WiFi.disconnect();
+  //
 
   /*
   // Wifi scan ML
@@ -294,58 +340,13 @@ void setup() {
 }
 
 void loop() {
-  WiFi.begin(ssidLucas, passwordLucas);
+  //WiFi.begin(ssidLucas, passwordLucas);
   
+  /*
   // scan & predict
   String local = converter.predict();
   Serial.println(local);
-  
-  // Array para armazenar as informações dos 3 pontos de acesso mais fortes
-  AccessPoint strongestAPs[4];
 
-  Serial.println("scan start");
-
-  // WiFi.scanNetworks will return the number of networks found
-  int n = WiFi.scanNetworks();
-  Serial.println("scan done");
-  if (n == 0) {
-      Serial.println("no networks found");
-  } else {
-    Serial.print(n);
-    Serial.println(" networks found");
-    for (int i = 0; i < n; ++i) {
-      // Obtem a força do sinal e o SSID da rede Wi-Fi
-      float rssi = WiFi.RSSI(i);
-      String ssid = WiFi.SSID(i);
-      String bssid = WiFi.BSSIDstr(i);
-
-      for (int j = 0; j < 4; j++){
-        if (rssi > strongestAPs[j].RSSI || i < 4) {
-            for (int k = 3; k > j; k--){
-              strongestAPs[k] = strongestAPs[k-1];
-            }
-            strongestAPs[j].RSSI = rssi;
-            strongestAPs[j].SSID = ssid;
-            strongestAPs[j].BSSID = bssid;
-            strongestAPs[j].DISTANCE = calculateDistance(strongestAPs[j].RSSI = rssi);
-            break;
-          }
-      }
-    }
-    // Exibe os 4 pontos de acesso mais fortes
-        Serial.println("Top 4 Redes Wi-Fi com sinal mais forte:");
-        for (int i = 0; i < 4 && i < n; ++i) {
-            Serial.print("SSID: ");
-            Serial.print(strongestAPs[i].SSID);
-            Serial.print(" | RSSI: ");
-            Serial.print(strongestAPs[i].RSSI);
-            Serial.print(" | BSSID: ");
-            Serial.println(strongestAPs[i].BSSID);
-            Serial.print(" | DISTANCE: ");
-            Serial.println(strongestAPs[i].DISTANCE);
-        }
-  }
-  
   // calcular as coordenadas X e Y
   Position pos = calculatePosition(rx1, ry1, rx2, ry2, strongestAPs[0].DISTANCE, strongestAPs[1].DISTANCE);
   Serial.print("ESP Position: (");
@@ -366,7 +367,5 @@ void loop() {
 
   // delay para escanear denovo
   delay(5000);
-  
-
-  
+  */
 }
