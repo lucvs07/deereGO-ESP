@@ -90,8 +90,8 @@ namespace eloq {
                 int prediction = _classifier->predict(features);
 
                 switch (prediction) {
-                     case 0: return "setor C - quadrante 2";
-                     case 1: return "setor C - quadrante 1";
+                     case 0: return "setor : A - quadrante : 1";
+                     case 1: return "setor : B - quadrante : 1";
                     
                 }
 

@@ -20,8 +20,6 @@ using eloq::rtls::FeaturesConverter;
 Classifier classifier;
 FeaturesConverter converter(wifiScanner, classifier);
 
-
-
 // Estrutura para armazenar informações sobre um ponto de acesso
 struct AccessPoint {
     String SSID;
@@ -30,8 +28,14 @@ struct AccessPoint {
     int DISTANCE;
 };
 
+// estrutura para as coordenadas
 struct Position {
   double x, y;
+};
+
+// estrtura para o local
+struct Local {
+  String setor, quadrante;
 };
 
 float distance;
@@ -338,6 +342,7 @@ std::vector<AccessPoint> getNetworkAps(const std::vector<String> ssidList){
   return selectedAPs;
 }
 
+// Função para conectar o wifi
 void conectarWifi(String ssid, String password){
   WiFi.mode(WIFI_STA);
   if (WiFi.status()!= WL_CONNECTED){
@@ -352,6 +357,17 @@ void conectarWifi(String ssid, String password){
   }  
 }
 
+// Função para transformar o local em duas variáveis Setor e quadrante
+Local getLocal(String localParam){
+  Local local;
+
+  int setorPos = localParam.indexOf("setor: ") + 9;
+  int quadrantePos = localParam.indexOf("- quadrante: ") + 25;
+
+  local.setor = localParam.substring(setorPos, localParam.indexOf(" -", setorPos));
+  local.quadrante = localParam.substring(quadrantePos);
+  return local;
+}
 void setup() {
   Serial.begin(115200);
 
@@ -370,17 +386,27 @@ void setup() {
   
   delay(500);
 
-  /* Conseguir a lista de roteadores da api
-  std::vector<String> ssidList = getAPI(apiEndpointGET, "A", "1");
+  // scan & predict
+  String local_setor = converter.predict();
+  Serial.println(local_setor);
+
+  Local local = getLocal(local_setor);
+  Serial.println(local.setor);
+  Serial.println(local.quadrante);
+
+  delay(1000);
+
+  // Conseguir a lista de roteadores da api
+  std::vector<String> ssidList = getAPI(apiEndpointGET, local.setor, local.quadrante);
   for (const auto& ssid : ssidList){
     Serial.println(ssid);
   }
-  */
+  
 
-  std::vector<String> ssidList = {"Guto Rapido", "11B", "AleDessa", "CAMARGO"};
+  std::vector<String> ssidList2 = {"Guto Rapido", "11B", "AleDessa", "CAMARGO"};
 
   // Scan pontos de acesso
-  std::vector<AccessPoint> selectedAPs = getNetworkAps(ssidList);
+  std::vector<AccessPoint> selectedAPs = getNetworkAps(ssidList2);
   // Exibir
   Serial.println("Lista de pontos de acesso (SSIDLIST): ");
   Serial.println(" | DISTANCE - 1: " + String(selectedAPs[0].DISTANCE));
