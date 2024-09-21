@@ -202,7 +202,18 @@ void atualizarDados(float espX, float espY, String apiEndpoint, String local) {
     }
 }
 
-void getAPI(String apiEndpoint){
+/*
+getAPI
+parâmetro:
+- String apiEndpoint -> url da api para fazer a requisição GET
+- String setor -> setor para buscar na api
+- String quadrante -> quadrante para buscar os roteadores
+
+saída:
+- array com os roteadores referente ao setor e quadrante do ESP
+*/
+std::vector<String> getAPI(String apiEndpoint, String setorParam, String quadranteParam){
+  std::vector<String> ssidList; // vetor para armazenar os SSIDs
   if (WiFi.status() == WL_CONNECTED) {
         HTTPClient http;
         http.begin(apiEndpoint);
@@ -224,21 +235,23 @@ void getAPI(String apiEndpoint){
               JsonArray arr = doc.as<JsonArray>();
               for (JsonObject obj : arr){
                 const char* Setor = obj["Setor"];
-                Serial.println("Setor: " + String(Setor));
-
-                // Acessando o array 'quadrantes' se existir
-                if (obj.containsKey("quadrantes")){
-                  JsonArray quadrantes = obj["quadrantes"];
-                  for (JsonObject quadrante : quadrantes){
-                    const char* Quadrante_nome = quadrante["Quadrante"];
-                    Serial.println("Quadrante: " + String(Quadrante_nome));
-
-                    // Acessando o array 'roteadores' se existir
-                    if (quadrante.containsKey("roteadores")){
-                      JsonArray roteadores = quadrante["roteadores"];
-                      for (JsonObject roteador : roteadores) {
-                        const char* Ssid_roteador = roteador["ssid"];
-                        Serial.println("SSID do Roteador:  " + String(Ssid_roteador));
+                // Verifica se o setor é igual ao passado como parâmetro
+                if (Setor == setorParam){
+                  // Acessando o array 'quadrantes' se existir
+                  if (obj.containsKey("quadrantes")){
+                    JsonArray quadrantes = obj["quadrantes"];
+                    for (JsonObject quadrante : quadrantes){
+                      const char* Quadrante_nome = quadrante["Quadrante"];
+                      if (Quadrante_nome == quadranteParam){
+                        // Acessando o array 'roteadores' se existir
+                        if (quadrante.containsKey("roteadores")){
+                          JsonArray roteadores = quadrante["roteadores"];
+                          for (JsonObject roteador : roteadores) {
+                            const char* Ssid_roteador = roteador["ssid"];
+                            //Adicionar SSID à lista
+                            ssidList.push_back(Ssid_roteador);
+                          }
+                        }
                       }
                     }
                   }
@@ -254,6 +267,7 @@ void getAPI(String apiEndpoint){
     } else {
         Serial.println("Error: WiFi not connected");
     }
+  return ssidList;
 }
 
 // Função para buscar os pontos de acesso com base nos SSIDs definidos por uma lista
@@ -274,6 +288,7 @@ std::vector<AccessPoint> getApBySSID(const std::vector<AccessPoint>& accessPoint
   return foundAPs; // Retornar a lista dos pontos de acesso encontrados
 }
 
+// Buscar redes
 void getNetworkAps(){
   std::vector<AccessPoint> strongestAPs; // vetor dinâmico para armazenar as informações (ssid, rssi e distância) dos roteadores
   
@@ -370,11 +385,18 @@ void setup() {
   Serial.print(" , y: ");
   Serial.println(pos_esp.y);
 
-  
+  // Scan pontos de acesso
+  getNetworkAps();
 
   // Set WiFi to station mode and disconnect from an AP if it was previously connected
   WiFi.mode(WIFI_STA);
   conectarWifi(ssidLucas, passwordLucas);
+  delay(500);
+  std::vector<String> ssidList = getAPI(apiEndpointGET, "A", "1");
+  for (const auto& ssid : ssidList){
+    Serial.println(ssid);
+  }
+
   
 
   /*
@@ -389,31 +411,17 @@ void setup() {
 }
 
 void loop() {
+  /* Conectar o ESP ao Wifi
   conectarWifi(ssidLucas, passwordLucas);
-  getAPI(apiEndpointGET);
   
   /*
   // scan & predict
   String local = converter.predict();
   Serial.println(local);
-
-  // calcular as coordenadas X e Y
-  Position pos = calculatePosition(rx1, ry1, rx2, ry2, strongestAPs[0].DISTANCE, strongestAPs[1].DISTANCE);
-  Serial.print("ESP Position: (");
-  Serial.print(pos.x);
-  Serial.print(", ");
-  Serial.print(pos.y);
-  Serial.println(")");
   
-  // Conectar o ESP ao Wifi para enviar os dados ao banco de dados
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(ssidLucas, passwordLucas);
-  while (WiFi.status()!= WL_CONNECTED){
-    delay(500);
-    Serial.println("not Connected");
-  }
+  
   // atualizar status e posição do carrinho
-  atualizarDados(pos.x, pos.y, apiEndpointPATCH, local);
+  atualizarDados(pos_esp.x, pos_esp.y, apiEndpointPATCH, local);
 
   // delay para escanear denovo
   delay(5000);
