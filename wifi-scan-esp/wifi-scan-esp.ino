@@ -289,7 +289,7 @@ std::vector<AccessPoint> getApBySSID(const std::vector<AccessPoint>& accessPoint
 }
 
 // Buscar redes
-void getNetworkAps(){
+std::vector<AccessPoint> getNetworkAps(const std::vector<String> ssidList){
   std::vector<AccessPoint> strongestAPs; // vetor dinâmico para armazenar as informações (ssid, rssi e distância) dos roteadores
   
   // WiFi.scanNetworks retorna o número de redes encontradas
@@ -324,9 +324,6 @@ void getNetworkAps(){
     return a.RSSI > b.RSSI; // ordena em ordem decrescente de RSSI
   });
 
-  //SSID LIST
-  std::vector<String> ssidList = {"Guto Rapido", "11B", "AleDessa", "CAMARGO"};
-
   //Buscar as informações com base na SSID LIST
   std::vector<AccessPoint> selectedAPs = getApBySSID(strongestAPs, ssidList);
 
@@ -338,14 +335,7 @@ void getNetworkAps(){
     Serial.print(" | BSSID: " + String(ap.BSSID));
     Serial.println(" | DISTANCE: " + String(ap.DISTANCE));
   }
-  // Exibir
-  Serial.println("Lista de pontos de acesso (SSIDLIST): ");
-  for (const auto& ap : selectedAPs) {
-    Serial.print("SSID: " + String(ap.SSID));
-    Serial.print(" | RSSID: " + String(ap.RSSI));
-    Serial.print(" | BSSID: " + String(ap.BSSID));
-    Serial.println(" | DISTANCE: " + String(ap.DISTANCE));
-  }
+  return selectedAPs;
 }
 
 void conectarWifi(String ssid, String password){
@@ -365,16 +355,49 @@ void conectarWifi(String ssid, String password){
 void setup() {
   Serial.begin(115200);
 
+  /*
+  // Wifi scan ML
+  wifiScanner.identifyBySSID();
+  // set lower bound for RSSI
+  wifiScanner.discardWeakerThan(-85);
+  // print feature vector before predictions
+  converter.verbose();
+  */
+
+  // Set WiFi to station mode and disconnect from an AP if it was previously connected
+  WiFi.mode(WIFI_STA);
+  conectarWifi(ssidLucas, passwordLucas);
+  
+  delay(500);
+
+  /* Conseguir a lista de roteadores da api
+  std::vector<String> ssidList = getAPI(apiEndpointGET, "A", "1");
+  for (const auto& ssid : ssidList){
+    Serial.println(ssid);
+  }
+  */
+
+  std::vector<String> ssidList = {"Guto Rapido", "11B", "AleDessa", "CAMARGO"};
+
+  // Scan pontos de acesso
+  std::vector<AccessPoint> selectedAPs = getNetworkAps(ssidList);
+  // Exibir
+  Serial.println("Lista de pontos de acesso (SSIDLIST): ");
+  Serial.println(" | DISTANCE - 1: " + String(selectedAPs[0].DISTANCE));
+  Serial.println(" | DISTANCE - 2: " + String(selectedAPs[1].DISTANCE));
+  Serial.println(" | DISTANCE - 3: " + String(selectedAPs[2].DISTANCE));
+  Serial.println(" | DISTANCE - 4: " + String(selectedAPs[3].DISTANCE));
+  
   // Teste localizar esp
   Position r1 = {0,0};
   Position r2 = {14,0};
   Position r3 = {0,14};
   Position r4 = {14,14};
 
-  double d1 = 5.0;
-  double d2 = 6.0;
-  double d3 = 7.0;
-  double d4 = 8.0;
+  double d1 = selectedAPs[0].DISTANCE;
+  double d2 = selectedAPs[1].DISTANCE;
+  double d3 = selectedAPs[2].DISTANCE;
+  double d4 = selectedAPs[3].DISTANCE;
 
   // Calcular a posição
   Position pos_esp = calculatePosition(d1, d2, d3, d4, r1, r2, r3, r4);
@@ -385,28 +408,7 @@ void setup() {
   Serial.print(" , y: ");
   Serial.println(pos_esp.y);
 
-  // Scan pontos de acesso
-  getNetworkAps();
 
-  // Set WiFi to station mode and disconnect from an AP if it was previously connected
-  WiFi.mode(WIFI_STA);
-  conectarWifi(ssidLucas, passwordLucas);
-  delay(500);
-  std::vector<String> ssidList = getAPI(apiEndpointGET, "A", "1");
-  for (const auto& ssid : ssidList){
-    Serial.println(ssid);
-  }
-
-  
-
-  /*
-  // Wifi scan ML
-  wifiScanner.identifyBySSID();
-  // set lower bound for RSSI
-  wifiScanner.discardWeakerThan(-85);
-  // print feature vector before predictions
-  converter.verbose();
-  */
   Serial.println("Setup done");
 }
 
