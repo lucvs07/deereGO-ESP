@@ -124,11 +124,11 @@ Position calculatePosition(double d1, double d2, double d3, double d4, Position 
 }
 
 
-const char* apiEndpointGET = "https://deerego-back.onrender.com/user"; // URL GET -> Buscar informações dos usuários
+const char* apiEndpointGET = "https://deerego-back.onrender.com/setor"; // URL GET -> Buscar informações dos usuários
 const char* apiEndpointPOST = "https://deerego-back.onrender.com/rebocador/entrega/carrinho"; // URL POST -> adicionar novas informações
 const char* apiEndpointPATCH = "https://deerego-back.onrender.com/rebocador/entrega/carrinho/66d843f5abc2283e65640a90"; // URL PATCH -> atualizar informações
-const char* ssidLucas = "A30 de Ronaldo";
-const char* passwordLucas = "24012006";
+const char* ssidLucas = "Guto Rapido";
+const char* passwordLucas = "familiarg_33";
 String local;
 
 void enviarDados(float espX, float espY, String apiEndpoint) {
@@ -223,43 +223,22 @@ void getAPI(String apiEndpoint){
               // Iterar sobre o array de objetos
               JsonArray arr = doc.as<JsonArray>();
               for (JsonObject obj : arr){
-                const char* Nome = obj["Nome"];
-                const char* Email = obj["Email"];
-                const char* Role = obj["Role"];
-                const char* Fabrica = obj["Fabrica"];
-                long telefone = obj["Telefone"];
-                bool status = obj["Status"];
+                const char* Setor = obj["Setor"];
+                Serial.println("Setor: " + String(Setor));
 
-                Serial.println("Nome: " + String(Nome));
-                Serial.println("Email: " + String(Email));
-                Serial.println("Role: " + String(Role));
-                Serial.println("Fábrica: " + String(Fabrica));
-                Serial.println("Telefone: " + String(telefone));
-                Serial.println("Status: " + String(status ? "Ativo" : "Inativo"));
+                // Acessando o array 'quadrantes' se existir
+                if (obj.containsKey("quadrantes")){
+                  JsonArray quadrantes = obj["quadrantes"];
+                  for (JsonObject quadrante : quadrantes){
+                    const char* Quadrante_nome = quadrante["Quadrante"];
+                    Serial.println("Quadrante: " + String(Quadrante_nome));
 
-                // Acessando o array 'Rebocadores' se existir
-                if (obj.containsKey("rebocadores")){
-                  JsonArray rebocadores = obj["rebocadores"];
-                  for (JsonObject rebocador : rebocadores){
-                    const char* id = rebocador["_id"];
-                    int tempoTotal = rebocador["TempoTotal"];
-                    int totalCarrinhos = rebocador["TotalCarrinhos"];
-                    const char* statusRebocador = rebocador["StatusRebocador"];
-
-                    Serial.println("id: " + String(id));
-                    Serial.println("Tempo Toal: " + String(tempoTotal));
-                    Serial.println("Total de Carrinhos: " + String(totalCarrinhos));
-                    Serial.println("Status do Rebocador: " + String(statusRebocador));
-
-                    // Acessando o array 'Carrinhos' se existir
-                    if (obj.containsKey("carrinhos")){
-                      JsonArray carrinhos = rebocador["carrinhos"];
-                      for (JsonObject carrinho : carrinhos) {
-                        const char* nomeCarrinho = carrinho["NomeCarrinho"];
-                        const char* pecas = carrinho["Peças"];
-
-                        Serial.println("Nome do Carrinho: " + String(nomeCarrinho));
-                        Serial.println("Peças: " + String(pecas));
+                    // Acessando o array 'roteadores' se existir
+                    if (quadrante.containsKey("roteadores")){
+                      JsonArray roteadores = quadrante["roteadores"];
+                      for (JsonObject roteador : roteadores) {
+                        const char* Ssid_roteador = roteador["ssid"];
+                        Serial.println("SSID do Roteador:  " + String(Ssid_roteador));
                       }
                     }
                   }
@@ -354,6 +333,20 @@ void getNetworkAps(){
   }
 }
 
+void conectarWifi(String ssid, String password){
+  WiFi.mode(WIFI_STA);
+  if (WiFi.status()!= WL_CONNECTED){
+    Serial.println("Not connected");
+    WiFi.disconnect(true);
+    delay(500);
+    WiFi.begin(ssid, password);
+    delay(500);
+  }
+  if (WiFi.status() == WL_CONNECTED){
+    Serial.println("Conectado!");
+  }  
+}
+
 void setup() {
   Serial.begin(115200);
 
@@ -377,11 +370,12 @@ void setup() {
   Serial.print(" , y: ");
   Serial.println(pos_esp.y);
 
-  /* Set WiFi to station mode and disconnect from an AP if it was previously connected
+  
+
+  // Set WiFi to station mode and disconnect from an AP if it was previously connected
   WiFi.mode(WIFI_STA);
-  WiFi.disconnect();
-  getNetworkAps();
-  */
+  conectarWifi(ssidLucas, passwordLucas);
+  
 
   /*
   // Wifi scan ML
@@ -395,7 +389,8 @@ void setup() {
 }
 
 void loop() {
-  //WiFi.begin(ssidLucas, passwordLucas);
+  conectarWifi(ssidLucas, passwordLucas);
+  getAPI(apiEndpointGET);
   
   /*
   // scan & predict
