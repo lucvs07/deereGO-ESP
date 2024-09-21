@@ -3,6 +3,7 @@
 #include "HTTPClient.h" // Blioteca para realizar requisições HTTP
 #include <ArduinoJson.h> // Incluindo a biblioteca ArduinoJson
 #include <vector> // Incluir vector dinâmico
+#include <ArduinoEigen.h> // fazer cálculos
 /**
 * Collect RTLS training data
 * using WiFi
@@ -30,16 +31,9 @@ struct AccessPoint {
 };
 
 struct Position {
-  float x;
-  float y;
+  double x, y;
 };
 
-
-float rx1 = 1;
-float ry1 = 8;
-float rx2 = 8;
-float ry2 = 8;
-float distanciaEntreRoteadores = 8;
 float distance;
 float rssi0;
 float pathloss = 2.1;
@@ -80,43 +74,53 @@ float calculateDistance(float RSSI, float RSSI0 = -56, float n=2.1) {
     return pow(10, (RSSI0 - RSSI) / (10 * n));
 }
 //calcular a posição do esp a partir da das coordenadas do roteador 1 (x1, y1) e roteador 2 (x2, y2), e das distâncias encontradas através do RSSI
-Position calculatePosition(float x1 , float y1 , float x2, float y2, float d1, float d2) {
-  /*
-  Serial.println("Valores variavéis ");
-  Serial.print("x1: ");
-  Serial.print(x1);
-  Serial.print(" y1: ");
-  Serial.print(y1);
-  Serial.print(" x2: ");
-  Serial.print(x2);
-  Serial.print(" y2: ");
-  Serial.print(y2);
-  Serial.print(" d1: ");
-  Serial.print(d1);
-  Serial.print(" d2: ");
-  Serial.println(d2);
-  */
+/*
+Variávies :
+- Distância do ESP ao ponto de acesso:
+  double d1 -> distância do ESP ao ponto 1
+  double d2 -> distância do ESP ao ponto 1
+  double d3 -> distância do ESP ao ponto 1
+  double d4 -> distância do ESP ao ponto 1
 
-  float A = 2 * (x2 - x1);
-  float B = 2 * (y2 - y1);
-  float C = pow(x1, 2) + pow(y1, 2) - pow(x2, 2) - pow(y2, 2) - pow(d1, 2) + pow(d2, 2);
-  // As fórmulas para calcular x e y
-  float x = (C * B) / (A * A + B * B);
-  float y = (C * A) / (A * A + B * B);
-  /*
-  Serial.println("Valores Função Calculate Position ");
-  Serial.print("A: ");
-  Serial.print(A);
-  Serial.print(" B: ");
-  Serial.print(B);
-  Serial.print(" C: ");
-  Serial.print(C);
-  Serial.print(" x: ");
-  Serial.print(x);
-  Serial.print(" y: ");
-  Serial.print(y);
-  */
-  return Position{x, y};
+- Coordenadas dos pontos de acesso:
+              x   y 
+  Position r1 = {1, 14};
+  Position r2 = {14, 14};
+  Position r3 = {1, 1};
+  Position r4 = {14, 1};
+*/
+Position calculatePosition(double d1, double d2, double d3, double d4, Position r1, Position r2, Position r3, Position r4) {
+  // Matriz A -> coordenadas dos pontos de acesso
+  Eigen::MatrixXd A(4,2);
+
+  A(0, 0) = 2 * (r2.x - r1.x);
+  A(0, 1) = 2 * (r2.y - r1.y);
+
+  A(1, 0) = 2 * (r3.x - r1.x);
+  A(1, 1) = 2 * (r3.y - r1.y);
+
+  A(2, 0) = 2 * (r4.x - r1.x);
+  A(2, 1) = 2 * (r4.y - r1.y);
+
+  A(3, 0) = 2 * (r4.x - r2.x);
+  A(3, 1) = 2 * (r4.y - r2.y);
+  
+  // Vetor B -> termos independentes das equações
+  Eigen::VectorXd B(4);
+  B(0) = d1 * d1 - d2 * d2 - r1.x * r1.x - r1.y * r1.y + r2.x * r2.x + r2.y * r2.y;
+  B(1) = d1 * d1 - d3 * d3 - r1.x * r1.x - r1.y * r1.y + r3.x * r3.x + r3.y * r3.y;
+  B(2) = d1 * d1 - d4 * d4 - r1.x * r1.x - r1.y * r1.y + r4.x * r4.x + r4.y * r4.y;
+  B(3) = d2 * d2 - d4 * d4 - r2.x * r2.x - r2.y * r2.y + r4.x * r4.x + r4.y * r4.y;
+
+  // Resolver o sistema usando mínimos quadrados
+  Eigen::VectorXd resultado = (A.transpose() * A).inverse() * A.transpose() * B;
+
+  // O vetor 'resultado' contém as coordenadas (x, y)
+  Position pos_esp;
+  pos_esp.x = resultado(0);
+  pos_esp.y = resultado(1);
+  
+  return pos_esp;
 }
 
 
@@ -353,12 +357,31 @@ void getNetworkAps(){
 void setup() {
   Serial.begin(115200);
 
-  // Set WiFi to station mode and disconnect from an AP if it was previously connected
+  // Teste localizar esp
+  Position r1 = {0,0};
+  Position r2 = {14,0};
+  Position r3 = {0,14};
+  Position r4 = {14,14};
+
+  double d1 = 5.0;
+  double d2 = 6.0;
+  double d3 = 7.0;
+  double d4 = 8.0;
+
+  // Calcular a posição
+  Position pos_esp = calculatePosition(d1, d2, d3, d4, r1, r2, r3, r4);
+
+  // Exibidr a posição
+  Serial.print("Posição do ESP: x: ");
+  Serial.print(pos_esp.x);
+  Serial.print(" , y: ");
+  Serial.println(pos_esp.y);
+
+  /* Set WiFi to station mode and disconnect from an AP if it was previously connected
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
   getNetworkAps();
-
-  //
+  */
 
   /*
   // Wifi scan ML
