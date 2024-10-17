@@ -1,5 +1,6 @@
 
 #include "WiFi.h" // Blioteca para configurações WIFI 
+//#include "HX711.h" // Biblioteca celula de carga
 #include "HTTPClient.h" // Blioteca para realizar requisições HTTP
 #include <ArduinoJson.h> // Incluindo a biblioteca ArduinoJson
 #include <vector> // Incluir vector dinâmico
@@ -16,6 +17,13 @@
 
 using eloq::rtls::wifiScanner;
 using eloq::rtls::FeaturesConverter;
+
+//HX711 scale;
+ 
+uint8_t dataPin = 22;
+uint8_t clockPin = 21;
+
+float peso;
 
 Classifier classifier;
 FeaturesConverter converter(wifiScanner, classifier);
@@ -129,53 +137,11 @@ Position calculatePosition(double d1, double d2, double d3, double d4, Position 
 
 
 const char* apiEndpointGET = "https://deerego-back.onrender.com/setor"; // URL GET -> Buscar informações dos usuários
-const char* apiEndpointPOST = "https://deerego-back.onrender.com/rebocador/entrega/carrinho"; // URL POST -> adicionar novas informações
-const char* apiEndpointPATCH = "https://deerego-back.onrender.com/rebocador/entrega/carrinho/66d843f5abc2283e65640a90"; // URL PATCH -> atualizar informações
-const char* ssidLucas = "Guto Rapido";
-const char* passwordLucas = "familiarg_33";
+const char* apiEndpointPATCH = "https://deerego-back.onrender.com/rebocador/66e08c813a8e1bab87c0712a"; // URL PATCH -> atualizar informações
+const char* ssidLucas = "A30 de Ronaldo";
+const char* passwordLucas = "24012006";
 String local;
 
-void enviarDados(float espX, float espY, String apiEndpoint) {
-    if (WiFi.status() == WL_CONNECTED) {
-        HTTPClient http;
-        http.begin(apiEndpoint);
-        http.addHeader("Content-Type", "application/json");
-
-        // Criar payload JSON com os dados a serem enviados
-        String payload = "{";
-        payload += "\"IdCarrinho\": ";
-        payload += 69;
-        payload += ", ";
-        payload += "\"Peças\": \"Veloso, Felipe\", ";
-        payload += "\"PosX\": ";
-        payload += espX;
-        payload += ", ";
-        payload += "\"PosY\": ";
-        payload += espY;
-        payload += ", ";
-        payload += "\"Local\": \"Setor C\", ";
-        payload += "\"StatusManutenção\":\"Operando\", ";
-        payload += "\"NomeCarrinho\": \"Veloso CPX\", ";
-        payload += "\"StatusCapacidade\": \"Cheio de Rola\"";
-        payload += "}";
-        
-        
-        int httpResponseCode = http.POST(payload);
-        Serial.println("ResponseCode");
-        Serial.print(httpResponseCode);
-
-        if (httpResponseCode > 0) {
-            String response = http.getString();
-            Serial.println("Response: " + response);
-        } else {
-            Serial.println("Error on sending POST");
-        }
-
-        http.end();
-    } else {
-        Serial.println("Error: WiFi not connected");
-    }
-}
 void atualizarDados(float espX, float espY, String apiEndpoint, String local) {
     if (WiFi.status() == WL_CONNECTED) {
         HTTPClient http;
@@ -187,7 +153,7 @@ void atualizarDados(float espX, float espY, String apiEndpoint, String local) {
         String payload = "{";
         payload += "\"PosX\": " + String(espX) + ", ";
         payload += "\"PosY\": " + String(espY) + ", ";
-        payload += "\"Local\": \"" + local + "\"";
+        payload += "\"Quadrante\": \"" + local + "\"";
         payload += "}";
         
         
@@ -234,36 +200,37 @@ std::vector<String> getAPI(String apiEndpoint, String setorParam, String quadran
             StaticJsonDocument<2048> doc;
             DeserializationError error = deserializeJson(doc, response);
 
-            if (!error){
-              // Iterar sobre o array de objetos
-              JsonArray arr = doc.as<JsonArray>();
-              for (JsonObject obj : arr){
-                const char* Setor = obj["Setor"];
-                // Verifica se o setor é igual ao passado como parâmetro
-                if (Setor == setorParam){
-                  // Acessando o array 'quadrantes' se existir
-                  if (obj.containsKey("quadrantes")){
-                    JsonArray quadrantes = obj["quadrantes"];
-                    for (JsonObject quadrante : quadrantes){
-                      const char* Quadrante_nome = quadrante["Quadrante"];
-                      if (Quadrante_nome == quadranteParam){
+            if (!error) {
+    // Iterar sobre o array de objetos
+    JsonArray arr = doc.as<JsonArray>();
+    for (JsonObject obj : arr) {
+        const char* Setor = obj["Setor"];
+
+        // Verifica se o setor é igual ao passado como parâmetro
+        if (String(Setor) == setorParam) {
+            // Acessando o array 'quadrantes' se existir
+            if (obj.containsKey("quadrantes")) {
+                JsonArray quadrantes = obj["quadrantes"];
+                for (JsonObject quadrante : quadrantes) {
+                    const char* Quadrante_nome = quadrante["Quadrante"];
+                    if (String(Quadrante_nome) == String(quadranteParam)) {
                         // Acessando o array 'roteadores' se existir
-                        if (quadrante.containsKey("roteadores")){
-                          JsonArray roteadores = quadrante["roteadores"];
-                          for (JsonObject roteador : roteadores) {
-                            const char* Ssid_roteador = roteador["ssid"];
-                            //Adicionar SSID à lista
-                            ssidList.push_back(Ssid_roteador);
-                          }
+                        if (quadrante.containsKey("roteadores")) {
+                            JsonArray roteadores = quadrante["roteadores"];
+                            for (JsonObject roteador : roteadores) {
+                                const char* Ssid_roteador = roteador["ssid"];
+                                // Adicionar SSID à lista
+                                ssidList.push_back(Ssid_roteador);
+                            }
                         }
-                      }
                     }
-                  }
                 }
-              }
-            } else {
-              Serial.println("Falha ao ler o json");
             }
+        }
+    }
+} else {
+    Serial.println("Falha ao ler o json");
+}
         } else {
             Serial.println("Error on getting Json");
         }
@@ -371,24 +338,48 @@ Local getLocal(String localParam){
 void setup() {
   Serial.begin(115200);
 
-  /*
   // Wifi scan ML
   wifiScanner.identifyBySSID();
   // set lower bound for RSSI
   wifiScanner.discardWeakerThan(-85);
   // print feature vector before predictions
   converter.verbose();
-  */
+
+  //Serial.println(__FILE__);
+  //Serial.print("LIBRARY VERSION: ");
+  //Serial.println(HX711_LIB_VERSION);
+  //Serial.println();
+ 
+  //scale.begin(dataPin, clockPin);
+ 
+  //scale.set_scale(6000);
+ 
+  //scale.tare(20);
 
   // Set WiFi to station mode and disconnect from an AP if it was previously connected
   WiFi.mode(WIFI_STA);
-  conectarWifi(ssidLucas, passwordLucas);
+  //conectarWifi(ssidLucas, passwordLucas);
   
   delay(500);
 
   // scan & predict
   String local_setor = converter.predict();
   Serial.println(local_setor);
+
+  
+
+
+  Serial.println("Setup done");
+}
+
+void loop() {
+  // Conectar o ESP ao Wifi
+  //conectarWifi(ssidLucas, passwordLucas);
+  
+  
+  // scan & predict
+  String local_setor = converter.predict();
+  Serial.println(local);
 
   Local local = getLocal(local_setor);
   Serial.println(local.setor);
@@ -403,16 +394,20 @@ void setup() {
   }
   
 
-  std::vector<String> ssidList2 = {"Guto Rapido", "11B", "AleDessa", "CAMARGO"};
+  std::vector<String> ssidList2 = {"JDUBER_01", "JDUBER_02", "JDUBER_03", "JDUBER_04"};
 
   // Scan pontos de acesso
   std::vector<AccessPoint> selectedAPs = getNetworkAps(ssidList2);
   // Exibir
   Serial.println("Lista de pontos de acesso (SSIDLIST): ");
-  Serial.println(" | DISTANCE - 1: " + String(selectedAPs[0].DISTANCE));
-  Serial.println(" | DISTANCE - 2: " + String(selectedAPs[1].DISTANCE));
-  Serial.println(" | DISTANCE - 3: " + String(selectedAPs[2].DISTANCE));
-  Serial.println(" | DISTANCE - 4: " + String(selectedAPs[3].DISTANCE));
+  Serial.print(" | SSID 01: " + String(selectedAPs[0].SSID));
+  Serial.println(" | DISTANCE - 01: " + String(selectedAPs[0].DISTANCE));
+  Serial.print(" | SSID 02: " + String(selectedAPs[1].SSID));
+  Serial.println(" | DISTANCE - 02: " + String(selectedAPs[1].DISTANCE));
+  Serial.print(" | SSID 03: " + String(selectedAPs[2].SSID));
+  Serial.println(" | DISTANCE - 03: " + String(selectedAPs[2].DISTANCE));
+  Serial.print(" | SSID 04: " + String(selectedAPs[3].SSID));
+  Serial.println(" | DISTANCE - 04: " + String(selectedAPs[3].DISTANCE));
   
   // Teste localizar esp
   Position r1 = {0,0};
@@ -433,25 +428,23 @@ void setup() {
   Serial.print(pos_esp.x);
   Serial.print(" , y: ");
   Serial.println(pos_esp.y);
-
-
-  Serial.println("Setup done");
-}
-
-void loop() {
-  /* Conectar o ESP ao Wifi
-  conectarWifi(ssidLucas, passwordLucas);
-  
-  /*
-  // scan & predict
-  String local = converter.predict();
-  Serial.println(local);
   
   
   // atualizar status e posição do carrinho
-  atualizarDados(pos_esp.x, pos_esp.y, apiEndpointPATCH, local);
+  atualizarDados(pos_esp.x, pos_esp.y, apiEndpointPATCH, local_setor);
 
   // delay para escanear denovo
-  delay(5000);
-  */
+  delay(1000);
+  
+
+  //if (scale.is_ready())
+  //{
+    //peso = scale.get_units();
+    //Serial.println(peso-139);
+    //delay(4000);
+  //};
+ 
+  //if ((peso-139) > 2) {
+    //Serial.print("Requisição");
+  //}
 }
