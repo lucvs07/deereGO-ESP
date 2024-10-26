@@ -139,8 +139,8 @@ Position calculatePosition(double d1, double d2, double d3, double d4, Position 
 const char* apiEndpointGET = "https://deerego-back.onrender.com/setor"; // URL GET -> Buscar informações dos usuários
 const char* apiEndpointPOST = "https://deerego-back.onrender.com/rebocador/entrega/carrinho"; // URL POST -> adicionar novas informações
 const char* apiEndpointPATCH = "https://deerego-back.onrender.com/rebocador/entrega/carrinho/66d843f5abc2283e65640a90"; // URL PATCH -> atualizar informações
-const char* ssidLucas = "A30 de Ronaldo";
-const char* passwordLucas = "24012006";
+const char* ssidLucas = "JDUBER_01";
+const char* passwordLucas = "saf_2024_01";
 String local;
 
 void enviarDados(float espX, float espY, String apiEndpoint) {
